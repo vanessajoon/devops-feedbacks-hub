@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DevOps Feedback Hub</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <h1>DevOps Feedback Hub 🚀</h1>
+    <p>Share your thoughts about your DevOps learning journey.</p>
+
+    <form id="feedbackForm">
+      <label for="name">Name</label>
+      <input id="name" name="name" type="text" placeholder="Your name" required>
+
+      <label for="message">Feedback</label>
+      <textarea id="message" name="message" placeholder="Write your feedback..." required></textarea>
+
+      <button type="submit">Submit Feedback</button>
+    </form>
+
+    <p id="status"></p>
+
+    <section>
+      <h2>Feedback</h2>
+      <div id="feedbackList"></div>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

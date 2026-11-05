@@ -1,0 +1,163 @@
+name: Feedback hub
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - main
+
+env:
+  ECR_REPOSITORY: 'feedback-hub'
+
+permissions:
+  contents: read
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install Node.js application
+        run: |
+          echo "Installing backend dependencies"
+          cd backend
+          npm ci
+
+      - name: Package Node.js application
+        run: |
+          echo "Creating deployment ZIP archive"
+          zip -r node-app.zip backend/ frontend/ docker-compose.yml
+
+      - name: Upload Build Artifact (ZIP)
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitaction-node-project
+          path: node-app.zip
+
+      - name: Notify if build fails
+        if: failure()
+        run: echo "🚨🚨 Build job failed! Please check logs"
+
+
+  Testing:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend test dependencies
+        run: |
+          echo "Installing backend test dependencies"
+          cd backend
+          npm ci
+
+      - name: Check code style (Linting)
+        run: |
+          cd backend
+          npm run lint --if-present
+
+      - name: Run test
+        run: |
+          echo "No test files found yet, skipping test execution safely"
+
+  Security_Scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with: 
+          fetch-depth: 0
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with: 
+          scan-type: fs
+          scan-ref: .
+          format: json
+          exit-code: 0
+          vuln-type: "os,library"
+          output: trivy-results.json
+
+      - name: Upload Trivy scan results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-result
+          path: trivy-results.json 
+
+  BUILD_AND_PUBLISH:
+    name: BUILD_AND_PUBLISH
+    runs-on: ubuntu-latest
+    environment: production
+    needs: [build, Testing, Security_Scan]
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push backend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: feedback-hub
+          IMAGE_TAG: ${{ github.sha }}
+
+        run: |
+          docker build \
+            -f backend/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG \
+            ./backend
+
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:backend-$IMAGE_TAG
+
+      - name: Build and push frontend image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: feedback-hub
+          IMAGE_TAG: ${{ github.sha }}
+
+        run: |
+          docker build \
+            -f frontend/Dockerfile \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG \
+            ./frontend
+
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:frontend-$IMAGE_TAG

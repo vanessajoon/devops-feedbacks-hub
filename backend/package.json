@@ -1,0 +1,18 @@
+{
+  "name": "devops-feedback-hub-backend",
+  "version": "1.0.0",
+  "description": "Backend API for the DevOps Feedback Hub",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "jest --runInBand"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "mongoose": "^8.19.2"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0",
+    "supertest": "^7.1.4"
+  }
+}
